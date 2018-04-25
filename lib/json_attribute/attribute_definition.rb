@@ -7,7 +7,7 @@
   # JsonAttribute::AttributeDefinition::{Registry}.
   class AttributeDefinition
     NO_DEFAULT_PROVIDED = Object.new.freeze
-    VALID_OPTIONS = %i{container_attribute store_key default array}.freeze
+    VALID_OPTIONS = %i{container_attribute store_key default array geo_type srid}.freeze
 
     attr_reader :name, :type, :original_args, :container_attribute
 
