@@ -13,6 +13,7 @@
     # TODO doc keyword args please.
     def initialize(name, type, options = {})
       # reflection useful for debugging, maybe other things.
+      
       @original_args = [name, type, options]
 
       @name = name.to_sym
@@ -30,8 +31,13 @@
       if type.is_a? Symbol
         # should we be using ActiveRecord::Type instead for db-specific
         # types? I think maybe not, we just want to serialize
-        # to a json primitive type that'll go in the json hash.
-        type = ActiveModel::Type.lookup(type)
+        # to a json primitive type that'll go in the json hash.      
+
+        if ["geography","geometry"].include?(type.to_s)
+          type = ActiveModel::Type.lookup(type,nil, "#{type.to_s}(#{options[:geo_type]},#{options[:srid]})")                    
+        else
+          type = ActiveModel::Type.lookup(type)          
+        end
       elsif ! type.is_a? ActiveModel::Type::Value
         raise ArgumentError, "Second argument (#{type}) must be a symbol or instance of an ActiveModel::Type::Value subclass"
       end
