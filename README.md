@@ -282,6 +282,16 @@ other key/values in it too.
 
 (No built-in way currently to do `like` queries?)
 
+## Forms and Form Builders
+
+Use with Rails form builders is supported pretty painlessly. Including with [simple_form](https://github.com/plataformatec/simple_form) and [cocoon](https://github.com/nathanvda/cocoon) (integration-tested in CI).
+
+If you have nested JsonAttribute::Models you'd like to use in your forms much like Rails associated records: Where you would use Rails `accept_nested_attributes_for`, instead `include JsonAttribute::NestedAttributes` and `json_attiribute_nested_attributes_for`. Multiple levels of nesting are supported.
+
+To get simple_form to properly detect your attribute types, define your attributes with `rails_attribute: true`.
+
+For more info, see doc page on [Use with Forms and Form Builders](doc_src/forms.md).
+
 ## Dirty tracking
 
 Full change-tracking, ActiveRecord::Attributes::Dirty-style, is available in
@@ -304,11 +314,11 @@ Change-tracking methods are available off the `json_attribute_changes` method.
     # All and only "new" style dirty tracking methods (Raisl 5.1+)
     # are available:
 
-    model.saved_changes
-    model.changes_to_save
-    model.saved_change_to_str?
-    model.saved_change_to_str
-    model.will_save_change_to_str?
+    model.json_attribute_changes.saved_changes
+    model.json_attribute_changes.changes_to_save
+    model.json_attribute_changes.saved_change_to_str?
+    model.json_attribute_changes.saved_change_to_str
+    model.json_attribute_changes.will_save_change_to_str?
     # etc
 
 More options are available, including merging changes from 'ordinary'

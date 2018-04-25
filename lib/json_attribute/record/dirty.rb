@@ -7,27 +7,30 @@ module JsonAttribute
     # to track dirty changes to json_attributes, off the json_attribute_changes
     # object.
     #
-    #    some_model.json_attribute_changes.saved_changes
-    #    some_model.json_attribute_changes.json_attr_before_last_save
+    #     some_model.json_attribute_changes.saved_changes
+    #     some_model.json_attribute_changes.json_attr_before_last_save
     #
     # All methods ordinarily in ActiveRecord::Attributes::Dirty should be available,
     # including synthetic attribute-specific ones like `will_save_change_to_attribute_name?`.
     # By default, they _only_ report changes from json attributes.
     # To have a merged list also including ordinary AR changes, add on `merged`:
     #
-    #    some_model.json_attribute_changes.merged.saved_changes
-    #    some_model.json_attribute_changes.merged.ordinary_attr_before_last_save
+    #     some_model.json_attribute_changes.merged.saved_changes
+    #     some_model.json_attribute_changes.merged.ordinary_attr_before_last_save
     #
     # Complex nested models will show up in changes as the cast models. If you want
     # the raw json instead, use `as_json`:
     #
-    #    some_model.json_attribute_changes.as_json.saved_changes
+    #     some_model.json_attribute_changes.as_json.saved_changes
     #
     # You can combine as_json and merged if you like:
     #
-    #    some_model.json_attribute_changes.as_json.merged.saved_changes
+    #     some_model.json_attribute_changes.as_json.merged.saved_changes
     #
     # See more in [separate documentation guide](../../../doc_src/dirty_tracking.md)
+    #
+    # See what methods are available off of the object returned by {json_attribute_changes}
+    # in {Dirty::Implementation} -- should be the AR dirty-tracking methods you expect.
     module Dirty
       def json_attribute_changes
         Implementation.new(self)
@@ -269,7 +272,7 @@ module JsonAttribute
         def matched_attribute_method(method_name)
           matches = self.class.send(:attribute_method_matchers_matching, method_name)
           matches.detect do |match|
-            registry.attribute_registered?(match.attr_name)
+            registry.has_attribute?(match.attr_name)
           end
         end
       end
