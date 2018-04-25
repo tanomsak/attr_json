@@ -37,11 +37,13 @@
       end
 
       if type.is_a? Symbol
+
         # ActiveModel::Type.lookup may make more sense, but ActiveModel::Type::Date
         # seems to have a bug with multi-param assignment. Mostly they return
         # the same types, but ActiveRecord::Type::Date works with multi-param assignment.
 
         # add suppport for geometry type 
+
         if ["geography","geometry"].include?(type.to_s)
           type = ActiveModel::Type.lookup(type,nil, "#{type.to_s}(#{options[:geo_type]},#{options[:srid]})")                    
         else
