@@ -1,37 +1,68 @@
-require 'json_attribute/attribute_definition'
-require 'json_attribute/attribute_definition/registry'
-require 'json_attribute/type/container_attribute'
+require 'attr_json/attribute_definition'
+require 'attr_json/attribute_definition/registry'
+require 'attr_json/type/container_attribute'
 
-module JsonAttribute
-  # The mix-in to provide JsonAttribute support to ActiveRecord::Base models.
+module AttrJson
+  # The mix-in to provide AttrJson support to ActiveRecord::Base models.
   # We call it `Record` instead of `ActiveRecord` to avoid confusing namespace
   # shadowing errors, sorry!
   #
   # @example
   #       class SomeModel < ActiveRecord::Base
-  #         include JsonAttribute::Record
+  #         include AttrJson::Record
   #
-  #         json_attribute :a_number, :integer
+  #         attr_json :a_number, :integer
   #       end
   #
   module Record
     extend ActiveSupport::Concern
 
-    DEFAULT_CONTAINER_ATTRIBUTE = :json_attributes
-
     included do
       unless self < ActiveRecord::Base
-        raise TypeError, "JsonAttribute::Record can only be used with an ActiveRecord::Base model. #{self} does not appear to be one. Are you looking for ::JsonAttribute::Model?"
+        raise TypeError, "AttrJson::Record can only be used with an ActiveRecord::Base model. #{self} does not appear to be one. Are you looking for ::AttrJson::Model?"
       end
 
-      class_attribute :json_attributes_registry, instance_accessor: false
-      self.json_attributes_registry = JsonAttribute::AttributeDefinition::Registry.new
-
-      class_attribute :default_json_container_attribute, instance_acessor: false
-      self.default_json_container_attribute ||= DEFAULT_CONTAINER_ATTRIBUTE
+      class_attribute :attr_json_registry, instance_accessor: false
+      self.attr_json_registry = AttrJson::AttributeDefinition::Registry.new
     end
 
     class_methods do
+      # Access or set class-wide json_attribute_config. Inherited by sub-classes,
+      # but setting on sub-classes is unique to subclass. Similar to how
+      # rails class_attribute's are used.
+      #
+      # @example access config
+      #   SomeClass.attr_json_config
+      #
+      # @example set config variables
+      #    class SomeClass < ActiveRecordBase
+      #       include JsonAttribute::Record
+      #
+      #       attr_json_config(default_container_attribute: "some_column")
+      #    end
+      # TODO make Model match please.
+      def attr_json_config(new_values = {})
+        if new_values.present?
+          # get one without new values, then merge new values into it, and
+          # set it locally for this class.
+          @attr_json_config = attr_json_config.merge(new_values)
+        else
+          if instance_variable_defined?("@attr_json_config")
+            # we have a custom one for this class, return it.
+            @attr_json_config
+          elsif superclass.respond_to?(:attr_json_config)
+            # return superclass without setting it locally, so changes in superclass
+            # will continue effecting us.
+            superclass.attr_json_config
+          else
+            # no superclass, no nothing, set it to blank one.
+            @attr_json_config = Config.new(mode: :record)
+          end
+        end
+      end
+
+
+
       # Type can be a symbol that will be looked up in `ActiveModel::Type.lookup`,
       # or an ActiveModel:::Type::Value).
       #
@@ -47,9 +78,9 @@ module JsonAttribute
       # @option options [String,Symbol] :store_key (nil) Serialize to JSON using
       #   given store_key, rather than name as would be usual.
       #
-      # @option options [Symbol,String] :container_attribute (self.default_json_container_attribute) The real
+      # @option options [Symbol,String] :container_attribute (attr_json_config.default_container_attribute, normally `json_attributes`) The real
       #   json(b) ActiveRecord attribute/column to serialize as a key in. Defaults to
-      #  `self.default_json_container_attribute`, which defaults to `:json_attributes`
+      #  `attr_json_config.default_container_attribute`, which defaults to `:json_attributes`
       #
       # @option options [Boolean] :validate (true) Create an ActiveRecord::Validations::AssociatedValidator so
       #   validation errors on the attributes post up to self.
@@ -58,11 +89,11 @@ module JsonAttribute
       #    `attribute` for name param. A Rails attribute isn't needed for our functionality,
       #    but registering thusly will let the type be picked up by simple_form and
       #    other tools that may look for it via Rails attribute APIs.
-      def json_attribute(name, type, **options)
+      def attr_json(name, type, **options)
         options = {
           rails_attribute: false,
           validate: true,
-          container_attribute: self.default_json_container_attribute
+          container_attribute: self.attr_json_config.default_container_attribute
         }.merge!(options)
         options.assert_valid_keys(AttributeDefinition::VALID_OPTIONS + [:validate, :rails_attribute])
         container_attribute = options[:container_attribute]
@@ -74,29 +105,35 @@ module JsonAttribute
         # only if it hasn't already been done. WARNING we are using internal
         # Rails API here, but only way to do this lazily, which I thought was
         # worth it. On the other hand, I think .attribute is idempotent, maybe we don't need it...
+        #
+        # We set default to empty hash, because that 'tricks' AR into knowing any
+        # application of defaults is a change that needs to be saved.
         unless attributes_to_define_after_schema_loads[container_attribute.to_s] &&
-               attributes_to_define_after_schema_loads[container_attribute.to_s].first.is_a?(JsonAttribute::Type::ContainerAttribute)
-            attribute container_attribute.to_sym, JsonAttribute::Type::ContainerAttribute.new(self, container_attribute)
+               attributes_to_define_after_schema_loads[container_attribute.to_s].first.is_a?(AttrJson::Type::ContainerAttribute) &&
+               attributes_to_define_after_schema_loads[container_attribute.to_s].first.model == self
+           # If this is already defined, but was for superclass, we need to define it again for
+           # this class.
+           attribute container_attribute.to_sym, AttrJson::Type::ContainerAttribute.new(self, container_attribute), default: -> { {} }
         end
 
-        self.json_attributes_registry = json_attributes_registry.with(
+        self.attr_json_registry = attr_json_registry.with(
           AttributeDefinition.new(name.to_sym, type, options.except(:rails_attribute, :validate))
         )
 
         # By default, automatically validate nested models
-        if type.kind_of?(JsonAttribute::Type::Model) && options[:validate]
+        if type.kind_of?(AttrJson::Type::Model) && options[:validate]
           self.validates_with ActiveRecord::Validations::AssociatedValidator, attributes: [name.to_sym]
         end
 
         # We don't actually use this for anything, we provide our own covers. But registering
         # it with usual system will let simple_form and maybe others find it.
         if options[:rails_attribute]
-          self.attribute name.to_sym, self.json_attributes_registry.fetch(name).type
+          self.attribute name.to_sym, self.attr_json_registry.fetch(name).type
         end
 
-        _json_attributes_module.module_eval do
+        _attr_jsons_module.module_eval do
           define_method("#{name}=") do |value|
-            attribute_def = self.class.json_attributes_registry.fetch(name.to_sym)
+            attribute_def = self.class.attr_json_registry.fetch(name.to_sym)
             # write_store_attribute copied from Rails store_accessor implementation.
             # https://github.com/rails/rails/blob/74c3e43fba458b9b863d27f0c45fd2d8dc603cbc/activerecord/lib/active_record/store.rb#L90-L96
 
@@ -114,7 +151,7 @@ module JsonAttribute
           end
 
           define_method("#{name}") do
-            attribute_def = self.class.json_attributes_registry.fetch(name.to_sym)
+            attribute_def = self.class.attr_json_registry.fetch(name.to_sym)
 
             # use of `read_store_attribute` is copied from Rails store_accessor implementation.
             # https://github.com/rails/rails/blob/74c3e43fba458b9b863d27f0c45fd2d8dc603cbc/activerecord/lib/active_record/store.rb#L90-L96
@@ -128,8 +165,8 @@ module JsonAttribute
       # Define an anonymous module and include it, so can still be easily
       # overridden by concrete class. Design cribbed from ActiveRecord::Store
       # https://github.com/rails/rails/blob/4590d7729e241cb7f66e018a2a9759cb3baa36e5/activerecord/lib/active_record/store.rb
-      def _json_attributes_module # :nodoc:
-        @_json_attributes_module ||= begin
+      def _attr_jsons_module # :nodoc:
+        @_attr_jsons_module ||= begin
           mod = Module.new
           include mod
           mod
