@@ -21,8 +21,9 @@ RSpec.describe AttrJson::NestedAttributes do
 
       attr_json :one_model, model_class_type
       attr_json :many_models, model_class_type, array: true
+      attr_json :array_of_strings, :string, array: true
 
-      attr_json_accepts_nested_attributes_for :one_model, :many_models
+      attr_json_accepts_nested_attributes_for :one_model, :many_models, :array_of_strings
     end
   end
   let(:instance) { klass.new }
@@ -170,6 +171,34 @@ RSpec.describe AttrJson::NestedAttributes do
     end
   end
 
+  describe "array of primitives" do
+    let(:setter) { :array_of_strings= }
+
+    it "should_define_an_attribute_writer_method" do
+      expect(instance).to respond_to setter
+    end
+
+    it "assign an array of strings on update" do
+      instance.update({ array_of_strings_attributes: ["one", "two", "three"] })
+
+      expect(instance.array_of_strings).to be_present
+      expect(instance.array_of_strings).to eq(["one", "two", "three"])
+    end
+
+    it "removes nils and empty strings on update" do
+      instance.update({ array_of_strings_attributes: ["", "one", nil, "two", "", "", "three"] })
+
+      expect(instance.array_of_strings).to be_present
+      expect(instance.array_of_strings).to eq(["one", "two", "three"])
+    end
+
+    it "assign an empty array" do
+      instance.update({ array_of_strings_attributes: [] })
+
+      expect(instance.array_of_strings).to eq([])
+    end
+  end
+
   describe "in an AttrJson::Model" do
     let(:klass) do
       model_class_type = model_class.to_type
@@ -312,6 +341,36 @@ RSpec.describe AttrJson::NestedAttributes do
         expect(instance.json_date).to eq Date.new(year_str.to_i, month_str.to_i, day_str.to_i)
       end
     end
+  end
 
+  describe "defaults" do
+    let(:klass) do
+      model_class_type = model_class.to_type
+      Class.new(ActiveRecord::Base) do
+        include AttrJson::Record
+        include AttrJson::NestedAttributes
+
+        attr_json_config(default_accepts_nested_attributes: { reject_if: :all_blank })
+
+        self.table_name = "products"
+
+        attr_json :one_model, model_class_type, accepts_nested_attributes: false
+        attr_json :many_models, model_class_type, array: true
+      end
+    end
+
+    it "applies default" do
+      expect(instance).to respond_to(:many_models_attributes=)
+
+      instance.many_models_attributes = [{}]
+      expect(instance.many_models).to eq([])
+
+      instance.many_models_attributes = [{str: "one"}]
+      expect(instance.many_models.first.str).to eq("one")
+    end
+
+    it "overrides false" do
+      expect(instance).not_to respond_to(:one_model_attributes=)
+    end
   end
 end

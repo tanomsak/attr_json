@@ -14,10 +14,23 @@ RSpec.describe AttrJson::Record do
   end
   let(:instance) { klass.new }
 
+  let(:custom_type) do
+    Class.new(ActiveModel::Type::Value)
+  end
+  let(:klass_with_custom) do
+    Class.new(ActiveRecord::Base) do
+      include AttrJson::Record
+
+      self.table_name = "products"
+      attr_json :custom, :type_raw
+    end
+  end
+  let(:instance_custom) { klass_with_custom.new }
+
   [
     [:integer, 12, "12"],
     [:string, "12", 12],
-    [:decimal, BigDecimal.new("10.01"), "10.0100"],
+    [:decimal, BigDecimal("10.01"), "10.0100"],
     [:boolean, true, "t"],
     [:date, Date.parse("2017-04-28"), "2017-04-28"],
     [:datetime, DateTime.parse("2017-04-04 04:45:00").to_time, "2017-04-04T04:45:00Z"],
@@ -83,6 +96,20 @@ RSpec.describe AttrJson::Record do
     expect(instance.int_array).to eq([1])
   end
 
+  it 'supports custom ActiveRecord registered types' do
+    expect { instance_custom }.to raise_error ArgumentError
+
+    ActiveRecord::Type.register(:type_raw, custom_type)
+    expect { instance_custom }.to_not raise_error
+
+    instance_custom.custom = 'foo'
+    expect(instance_custom.json_attributes).to eq('custom' => 'foo')
+
+    instance_custom.save!
+    instance_custom.reload
+    expect(instance_custom.custom).to eq 'foo'
+  end
+
   # TODO: Should it LET you redefine instead, and spec for that? Have to pay
   # attention to store keys too if we let people replace attributes.
   it "raises on re-using attribute name" do
@@ -95,6 +122,21 @@ RSpec.describe AttrJson::Record do
         attr_json :value, :integer
       end
     }.to raise_error(ArgumentError, /Can't add, conflict with existing attribute name `value`/)
+  end
+
+  it "can define without triggering a db connection" do
+    expect(ActiveRecord::Base).not_to receive(:connection)
+
+    Class.new(ActiveRecord::Base) do
+      include AttrJson::Record
+
+      self.table_name = "products"
+      attr_json :value, :string
+    end
+  end
+
+  it "has registered attributes on registry" do
+    expect(klass.attr_json_registry.attribute_names).to match([:str, :int, :int_array, :int_with_default])
   end
 
   context "initialize" do
@@ -469,7 +511,7 @@ RSpec.describe AttrJson::Record do
       expect(instance.other_attributes).to eq("value" => "Y")
       expect(instance.json_attributes).to be_blank
 
-      instance.update_attributes!({ value: "Z" })
+      instance.update!({ value: "Z" })
       instance.reload
       expect(instance.value).to eq("Z")
       expect(instance.other_attributes).to eq("value" => "Z")
@@ -507,7 +549,7 @@ RSpec.describe AttrJson::Record do
         expect(instance.other_attributes).to eq("value" => "Y")
         expect(instance.json_attributes).to be_blank
 
-        instance.update_attributes!({ value: "Z" })
+        instance.update!({ value: "Z" })
         instance.reload
         expect(instance.value).to eq("Z")
         expect(instance.other_attributes).to eq("value" => "Z")
@@ -553,7 +595,7 @@ RSpec.describe AttrJson::Record do
         expect(instance.json_attributes).to eq("value" => "A", "value2" => "B")
         expect(instance.other_attributes).to be_blank
 
-        instance.update_attributes!({ json_attributes: { value: "C", value2: "D" } })
+        instance.update!({ json_attributes: { value: "C", value2: "D" } })
         instance.reload
         expect(instance.value).to eq("C")
         expect(instance.value2).to eq("D")
@@ -582,7 +624,7 @@ RSpec.describe AttrJson::Record do
         expect(instance.json_attributes).to eq("value" => "C", "value2" => "D")
         expect(instance.other_attributes).to eq("foo" => "A", "bar" => "B")
 
-        instance.update_attributes!({ json_attributes: { value: "K", value2: "L" }, other_attributes: { foo: "M", bar: "N"} })
+        instance.update!({ json_attributes: { value: "K", value2: "L" }, other_attributes: { foo: "M", bar: "N"} })
         instance.reload
         expect(instance.foo).to eq("M")
         expect(instance.bar).to eq("N")

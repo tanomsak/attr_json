@@ -12,7 +12,9 @@
     attr_reader :name, :type, :original_args, :container_attribute
 
     # @param name [Symbol,String]
-    # @param type [Symbol,ActiveModel::Type::Value]
+    # @param type [Symbol,ActiveModel::Type::Value] Symbol is looked up in
+    #   ActiveRecord::Type.lookup, but with `adapter: nil` for no custom
+    #   adapter-specific lookup.
     #
     # @option options store_key [Symbol,String]
     # @option options container_attribute [Symbol,ActiveModel::Type::Value]
@@ -45,9 +47,9 @@
         # add suppport for geometry type 
 
         if ["geography","geometry"].include?(type.to_s)
-          type = ActiveModel::Type.lookup(type,nil, "#{type.to_s}(#{options[:geo_type]},#{options[:srid]})")                    
-        else
-          type = ActiveModel::Type.lookup(type)          
+          type = ActiveModel::Type.lookup(type, nil,"#{type.to_s}(#{options[:geo_type]},#{options[:srid]})")                    
+        else   
+          type = ActiveRecord::Type.lookup(type, adapter: nil)      
         end
 
       elsif ! type.is_a? ActiveModel::Type::Value

@@ -3,7 +3,7 @@
 [![Gem Version](https://badge.fury.io/rb/attr_json.svg)](https://badge.fury.io/rb/attr_json)
 
 
-ActiveRecord attributes stored serialized in a json column, super smooth. For Rails 5.0, 5.1, or 5.2. Ruby 2.4+.
+ActiveRecord attributes stored serialized in a json column, super smooth. For Rails 5.0, 5.1, 5.2, or 6.0. Ruby 2.4+.
 
 Typed and cast like Active Record. Supporting [nested models](#nested), [dirty tracking](#dirty), some [querying](#querying) (with postgres [jsonb](https://www.postgresql.org/docs/9.5/static/datatype-json.html) contains), and [working smoothy with form builders](#forms).
 
@@ -116,7 +116,13 @@ model.json_attributes_before_type_cast # => string containing: {"__my_string":"f
 
 You can of course combine `array`, `default`, `store_key`, and `container_attribute`
 params however you like, with whatever types you like: symbols resolvable
-with `ActiveModel::Type.lookup`, or any [ActiveModel::Type::Value](https://apidock.com/rails/ActiveRecord/Attributes/ClassMethods/attribute) subclass, built-in or custom.
+with `ActiveRecord::Type.lookup`, or any [ActiveModel::Type::Value](https://apidock.com/rails/ActiveRecord/Attributes/ClassMethods/attribute) subclass, built-in or custom.
+
+You can register your custom `ActiveModel::Type::Value` in a Rails initializer or early on in your app boot sequence:
+
+```ruby
+ActiveRecord::Type.register(:my_type, MyActiveModelTypeSubclass)
+```
 
 <a name="querying"></a>
 ## Querying
@@ -417,6 +423,10 @@ While `attr_json` depends only on `active_record`, we run integration tests in t
 At present this does mean that all our automated tests are run in a full Rails environment, which is not great (any suggestions or PR's to fix this while still running integration tests under CI with full Rails app).
 
 Tests are in rspec, run tests simply with `./bin/rspec`.
+
+We use [appraisal](https://github.com/thoughtbot/appraisal) to test with multiple rails versions, including on travis. Locally you can run `bundle exec appraisal rspec` to run tests multiple times for each rails version, or eg `bundle exec appraisal rails-5-1 rspec`. If the `Gemfile` _or_ `Appraisal` file changes, you may need to re-run `bundle exec appraisal install` and commit changes. (Try to put dev dependencies in gemspec instead of Gemfile, but sometimes it gets weird.)
+
+* If you've been switching between rails versions and you get integration test failures, try `rm -rf spec/internal/tmp/cache`. Rails 6 does some things in there apparently not compatible with Rails 5, at least in our setup, and vice versa.
 
 There is a `./bin/console` that will give you a console in the context of attr_json and all it's dependencies, including the combustion rails app, and the models defined there.
 
